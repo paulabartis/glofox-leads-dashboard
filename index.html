@@ -193,18 +193,27 @@
     <div class="section-title">Workable Pool Attributes <span class="badge">SDR pipeline view</span></div>
     <!-- Funnel summary bar -->
     <div id="workable-funnel" style="display:flex;align-items:center;gap:0;margin-bottom:20px;border-radius:8px;overflow:hidden;font-size:12px;"></div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;">
-      <div>
-        <div style="font-size:11px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Status Breakdown of Workable Leads</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start;margin-bottom:24px;">
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px;">
+        <div style="font-size:11px;font-weight:600;color:#3B82F6;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Lead Records — Status</div>
+        <div id="workable-lead-count" style="font-size:12px;color:#64748B;margin-bottom:10px;"></div>
         <div style="display:flex;align-items:center;gap:16px;">
-          <div style="position:relative;width:160px;height:160px;flex-shrink:0;"><canvas id="workable-donut"></canvas></div>
-          <div id="workable-donut-legend" style="flex:1;"></div>
+          <div style="position:relative;width:130px;height:130px;flex-shrink:0;"><canvas id="workable-lead-donut"></canvas></div>
+          <div id="workable-lead-legend" style="flex:1;"></div>
         </div>
       </div>
-      <div>
-        <div style="font-size:11px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Channel Quality</div>
-        <div class="table-wrap"><table id="workable-channel-table"></table></div>
+      <div style="background:#F8FAFC;border:1px solid #E2E8F0;border-radius:8px;padding:16px;">
+        <div style="font-size:11px;font-weight:600;color:#8B5CF6;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Contact Records — Status</div>
+        <div id="workable-contact-count" style="font-size:12px;color:#64748B;margin-bottom:10px;"></div>
+        <div style="display:flex;align-items:center;gap:16px;">
+          <div style="position:relative;width:130px;height:130px;flex-shrink:0;"><canvas id="workable-contact-donut"></canvas></div>
+          <div id="workable-contact-legend" style="flex:1;"></div>
+        </div>
       </div>
+    </div>
+    <div>
+      <div style="font-size:11px;font-weight:600;color:#94A3B8;text-transform:uppercase;letter-spacing:.06em;margin-bottom:12px;">Channel Quality</div>
+      <div class="table-wrap"><table id="workable-channel-table"></table></div>
     </div>
   </div>
 
@@ -788,59 +797,61 @@ function renderWorkable() {
     </div>`;
   }).join('');
 
-  // ── Donut chart ───────────────────────────────────────────────────────────
-  destroyChart('workable-donut');
-  const labels  = statuses.map(r => r.lead_status || '—');
-  const counts  = statuses.map(r => r.total);
-  const colors  = statuses.map(r => STATUS_COLORS[r.lead_status] || '#CBD5E1');
+  // ── Helper: render one donut panel ───────────────────────────────────────
+  function renderStatusDonut(canvasId, legendId, countId, subset, accentColor) {
+    destroyChart(canvasId);
+    const subTotal = subset.reduce((s, r) => s + r._count, 0);
+    const byStatus = sumBy(subset, ['lead_status']).sort((a, b) => b.total - a.total);
 
-  charts['workable-donut'] = new Chart(document.getElementById('workable-donut'), {
-    type: 'doughnut',
-    data: { labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }] },
-    options: {
-      responsive: true, maintainAspectRatio: false, cutout: '68%',
-      plugins: {
-        legend: { display: false },
-        tooltip: { callbacks: {
-          label: ctx => ` ${ctx.label || '—'}: ${ctx.raw.toLocaleString()} (${pct(ctx.raw, wTotal)}%)`
-        }},
-      },
-    },
-  });
+    document.getElementById(countId).textContent = `${subTotal.toLocaleString()} workable`;
 
-  // ── Donut legend (with Lead / Contact split) ─────────────────────────────
-  const hasRecordType = wData.some(r => r.record_type);
-  document.getElementById('workable-donut-legend').innerHTML = statuses.map(r => {
-    const label  = r.lead_status || '—';
-    const color  = STATUS_COLORS[r.lead_status] || '#CBD5E1';
-    const isOpen = UNACTIONED.has(r.lead_status);
-    const tag    = isOpen ? `<span style="font-size:10px;background:#FEE2E2;color:#EF4444;padding:1px 5px;border-radius:3px;font-weight:600;margin-left:4px;">unactioned</span>` : '';
-    const barW   = pct(r.total, wTotal);
-
-    let splitHtml = '';
-    if (hasRecordType) {
-      const leadN    = wData.filter(d => d.lead_status === r.lead_status && d.record_type === 'Lead').reduce((s, d) => s + d._count, 0);
-      const contactN = wData.filter(d => d.lead_status === r.lead_status && d.record_type === 'Contact').reduce((s, d) => s + d._count, 0);
-      splitHtml = `<div style="display:flex;gap:10px;margin-top:3px;margin-left:16px;">
-        <span style="font-size:11px;color:#64748B;">Lead <strong style="color:#1E293B;">${leadN.toLocaleString()}</strong></span>
-        <span style="font-size:11px;color:#64748B;">Contact <strong style="color:#1E293B;">${contactN.toLocaleString()}</strong></span>
-      </div>`;
+    if (subTotal === 0) {
+      document.getElementById(legendId).innerHTML = '<div style="font-size:12px;color:#94A3B8;padding:8px 0;">No data for this period</div>';
+      return;
     }
 
-    return `<div style="margin-bottom:10px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
-        <div style="display:flex;align-items:center;gap:6px;">
-          <div style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;"></div>
-          <span style="font-size:12px;font-weight:600;color:#1E293B;">${label}</span>${tag}
+    const labels = byStatus.map(r => r.lead_status || '—');
+    const counts = byStatus.map(r => r.total);
+    const colors = byStatus.map(r => STATUS_COLORS[r.lead_status] || '#CBD5E1');
+
+    charts[canvasId] = new Chart(document.getElementById(canvasId), {
+      type: 'doughnut',
+      data: { labels, datasets: [{ data: counts, backgroundColor: colors, borderWidth: 2, borderColor: '#fff', hoverOffset: 6 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '68%',
+        plugins: {
+          legend: { display: false },
+          tooltip: { callbacks: { label: ctx => ` ${ctx.label || '—'}: ${ctx.raw.toLocaleString()} (${pct(ctx.raw, subTotal)}%)` } },
+        },
+      },
+    });
+
+    document.getElementById(legendId).innerHTML = byStatus.map(r => {
+      const label  = r.lead_status || '—';
+      const color  = STATUS_COLORS[r.lead_status] || '#CBD5E1';
+      const isOpen = UNACTIONED.has(r.lead_status);
+      const tag    = isOpen ? `<span style="font-size:10px;background:#FEE2E2;color:#EF4444;padding:1px 5px;border-radius:3px;font-weight:600;margin-left:4px;">unactioned</span>` : '';
+      const barW   = pct(r.total, subTotal);
+      return `<div style="margin-bottom:9px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+          <div style="display:flex;align-items:center;gap:5px;">
+            <div style="width:9px;height:9px;border-radius:2px;background:${color};flex-shrink:0;"></div>
+            <span style="font-size:12px;font-weight:600;color:#1E293B;">${label}</span>${tag}
+          </div>
+          <span style="font-size:12px;font-weight:700;color:${color};margin-left:6px;">${r.total.toLocaleString()} <span style="font-weight:400;color:#94A3B8;">(${barW}%)</span></span>
         </div>
-        <span style="font-size:12px;font-weight:700;color:${color};margin-left:8px;">${r.total.toLocaleString()} <span style="font-weight:400;color:#94A3B8;">(${barW}%)</span></span>
-      </div>
-      ${splitHtml}
-      <div class="bar-track" style="height:5px;">
-        <div class="bar-fill" style="width:${barW}%;background:${color};opacity:.7;"></div>
-      </div>
-    </div>`;
-  }).join('');
+        <div class="bar-track" style="height:4px;">
+          <div class="bar-fill" style="width:${barW}%;background:${color};opacity:.7;"></div>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  const leadData    = wData.filter(r => !r.record_type || r.record_type === 'Lead');
+  const contactData = wData.filter(r => r.record_type === 'Contact');
+
+  renderStatusDonut('workable-lead-donut',    'workable-lead-legend',    'workable-lead-count',    leadData,    '#3B82F6');
+  renderStatusDonut('workable-contact-donut', 'workable-contact-legend', 'workable-contact-count', contactData, '#8B5CF6');
 
   // ── Channel quality table ─────────────────────────────────────────────────
   const channels = uniq(allData.map(r => r.channel)).filter(Boolean);
