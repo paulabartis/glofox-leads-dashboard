@@ -47,6 +47,16 @@
   .filter-label { font-size: 12px; color: #94A3B8; font-weight: 500; white-space: nowrap; }
   .filter-select { padding: 5px 28px 5px 10px; border: 1.5px solid #CBD5E1; border-radius: 6px; background: #fff; color: #475569; font-size: 13px; cursor: pointer; outline: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
   .filter-select:focus { border-color: #3B82F6; }
+  .date-input { padding: 5px 10px; border: 1.5px solid #CBD5E1; border-radius: 6px; background: #fff; color: #475569; font-size: 13px; cursor: pointer; outline: none; }
+  .date-input:focus { border-color: #3B82F6; }
+  .compare-btn { padding: 5px 12px; border: 1.5px solid #CBD5E1; border-radius: 6px; background: #fff; color: #64748B; font-size: 12px; font-weight: 500; cursor: pointer; white-space: nowrap; }
+  .compare-btn.active { background: #EEF2FF; color: #4F46E5; border-color: #818CF8; }
+  .compare-bar { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; background: #F8F9FF; border: 1px dashed #C7D2FE; border-radius: 8px; padding: 10px 16px; margin-bottom: 16px; }
+  .kpi-compare { font-size: 11px; color: #94A3B8; margin-top: 3px; min-height: 16px; }
+  .kpi-delta { display: inline-block; font-size: 11px; font-weight: 700; padding: 1px 5px; border-radius: 3px; margin-left: 3px; }
+  .kpi-delta.up   { background: #DCFCE7; color: #15803D; }
+  .kpi-delta.down { background: #FEE2E2; color: #B91C1C; }
+  .kpi-delta.flat { background: #F1F5F9; color: #64748B; }
 
   /* ── KPI strip ── */
   .kpi-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 24px; }
@@ -122,12 +132,13 @@
     <div class="toggle-group">
       <button class="toggle-btn" id="toggle-monthly" onclick="setPeriodMode('monthly')">Monthly</button>
       <button class="toggle-btn active" id="toggle-weekly" onclick="setPeriodMode('weekly')">Weekly</button>
+      <button class="toggle-btn" id="toggle-daily" onclick="setPeriodMode('daily')">Daily</button>
     </div>
     <div class="filter-divider"></div>
-    <span class="filter-label">From</span>
-    <select class="filter-select" id="filter-from" onchange="applyFilters()"></select>
+    <input type="date" class="date-input" id="filter-from" onchange="applyFilters()">
     <span class="date-range-arrow">→</span>
-    <select class="filter-select" id="filter-to" onchange="applyFilters()"></select>
+    <input type="date" class="date-input" id="filter-to" onchange="applyFilters()">
+    <button class="compare-btn" id="compare-btn" onclick="toggleCompare()">+ Compare</button>
     <div class="filter-divider"></div>
     <span class="filter-label">Channel</span>
     <select class="filter-select" id="filter-channel" onchange="applyFilters()">
@@ -142,13 +153,21 @@
       <option value="">All Reps</option>
     </select>
   </div>
+  <!-- Compare bar (hidden until + Compare clicked) -->
+  <div class="compare-bar" id="compare-bar" style="display:none;">
+    <span class="filter-label" style="color:#4F46E5;">Compare to</span>
+    <input type="date" class="date-input" id="compare-from" onchange="applyFilters()">
+    <span class="date-range-arrow">→</span>
+    <input type="date" class="date-input" id="compare-to" onchange="applyFilters()">
+    <button onclick="clearCompare()" style="padding:4px 10px;border:1px solid #C7D2FE;border-radius:5px;background:#fff;color:#6366F1;font-size:12px;cursor:pointer;">✕ Remove</button>
+  </div>
 
   <!-- KPI Strip -->
   <div class="kpi-grid" id="kpi-grid">
-    <div class="kpi-card"><div class="kpi-label">Total MQLs</div><div class="kpi-value" id="kpi-total">—</div><div class="kpi-sub" id="kpi-total-sub"></div></div>
-    <div class="kpi-card"><div class="kpi-label">Workable</div><div class="kpi-value" id="kpi-workable">—</div><div class="kpi-sub" id="kpi-workable-sub"></div></div>
-    <div class="kpi-card"><div class="kpi-label">Non-Workable</div><div class="kpi-value" id="kpi-nw">—</div><div class="kpi-sub" id="kpi-nw-sub"></div></div>
-    <div class="kpi-card"><div class="kpi-label">Workable Rate</div><div class="kpi-value" id="kpi-rate">—</div><div class="kpi-sub" id="kpi-rate-sub"></div></div>
+    <div class="kpi-card"><div class="kpi-label">Total MQLs</div><div class="kpi-value" id="kpi-total">—</div><div class="kpi-sub" id="kpi-total-sub"></div><div class="kpi-compare" id="kpi-total-cmp"></div></div>
+    <div class="kpi-card"><div class="kpi-label">Workable</div><div class="kpi-value" id="kpi-workable">—</div><div class="kpi-sub" id="kpi-workable-sub"></div><div class="kpi-compare" id="kpi-workable-cmp"></div></div>
+    <div class="kpi-card"><div class="kpi-label">Non-Workable</div><div class="kpi-value" id="kpi-nw">—</div><div class="kpi-sub" id="kpi-nw-sub"></div><div class="kpi-compare" id="kpi-nw-cmp"></div></div>
+    <div class="kpi-card"><div class="kpi-label">Workable Rate</div><div class="kpi-value" id="kpi-rate">—</div><div class="kpi-sub" id="kpi-rate-sub"></div><div class="kpi-compare" id="kpi-rate-cmp"></div></div>
   </div>
 
   <!-- Trend chart -->
@@ -209,14 +228,73 @@
 let rawData  = [];
 let filtered = [];
 let charts   = {};
-let state    = {
-  mode:    'weekly',    // 'monthly' | 'weekly'
-  from:    '',          // period key for range start ('' = current period)
-  to:      '',          // period key for range end ('' = current period)
-  channel: '',
-  region:  '',
-  rep:     '',
+let state = {
+  mode:        'weekly',  // 'monthly' | 'weekly' | 'daily'
+  from:        '',        // ISO date string
+  to:          '',
+  comparing:   false,
+  compareFrom: '',
+  compareTo:   '',
+  channel:     '',
+  region:      '',
+  rep:         '',
 };
+let compareFiltered = [];  // data for comparison period
+
+// ── Date utilities ────────────────────────────────────────────────────────────
+function isoToday() { return new Date().toISOString().slice(0, 10); }
+
+function addDays(isoDate, n) {
+  const d = new Date(isoDate); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10);
+}
+
+function daysBetween(a, b) {
+  return Math.round((new Date(b) - new Date(a)) / 86400000);
+}
+
+function monthLabelToIso(label) {
+  const months = {Jan:'01',Feb:'02',Mar:'03',Apr:'04',May:'05',Jun:'06',Jul:'07',Aug:'08',Sep:'09',Oct:'10',Nov:'11',Dec:'12'};
+  const [mon, yr] = label.split(' ');
+  return `${yr}-${months[mon]}-01`;
+}
+
+function isoToMonthEnd(iso) {
+  const d = new Date(iso); d.setMonth(d.getMonth() + 1); d.setDate(0);
+  return d.toISOString().slice(0, 10);
+}
+
+function dataDateBounds() {
+  const weekly  = window.DASHBOARD_DATA.week_order || [];
+  const daily   = window.DASHBOARD_DATA.day_order  || [];
+  const monthly = window.DASHBOARD_DATA.month_order || [];
+  let min = '', max = '';
+  if (daily.length)   { min = daily[0]; max = daily[daily.length - 1]; }
+  else if (weekly.length) { min = weekly[0]; max = addDays(weekly[weekly.length - 1], 6); }
+  else if (monthly.length) {
+    min = monthLabelToIso(monthly[0]);
+    max = isoToMonthEnd(monthLabelToIso(monthly[monthly.length - 1]));
+  }
+  return { min, max };
+}
+
+function defaultDateRange(mode) {
+  const bounds = dataDateBounds();
+  const today  = isoToday();
+  if (mode === 'monthly') {
+    const months = sortedMonthKeys();
+    const latest = months[months.length - 1] || '';
+    return { from: monthLabelToIso(latest), to: Math.min(isoToMonthEnd(monthLabelToIso(latest)), today) <= today ? isoToMonthEnd(monthLabelToIso(latest)) : today };
+  }
+  if (mode === 'daily') {
+    const weeks = sortedWeekKeys();
+    const latestWeek = weeks[weeks.length - 1] || bounds.min;
+    return { from: latestWeek, to: today < bounds.max ? today : bounds.max };
+  }
+  // weekly: latest week
+  const weeks = sortedWeekKeys();
+  const latestWeek = weeks[weeks.length - 1] || bounds.min;
+  return { from: latestWeek, to: addDays(latestWeek, 6) };
+}
 
 // ── CSV parsing ───────────────────────────────────────────────────────────────
 function parseCSVLine(line) {
@@ -263,13 +341,9 @@ function refreshData() {
 // ── Filter options ────────────────────────────────────────────────────────────
 function uniq(arr) { return [...new Set(arr)].filter(Boolean).sort(); }
 
-function sortedMonthKeys() {
-  return window.DASHBOARD_DATA.month_order || [];
-}
-
-function sortedWeekKeys() {
-  return window.DASHBOARD_DATA.week_order || [];
-}
+function sortedMonthKeys()  { return window.DASHBOARD_DATA.month_order || []; }
+function sortedWeekKeys()   { return window.DASHBOARD_DATA.week_order  || []; }
+function sortedDailyKeys()  { return window.DASHBOARD_DATA.day_order   || []; }
 
 function buildFilterOptions() {
   const fill = (id, values) => {
@@ -290,39 +364,83 @@ function buildFilterOptions() {
 }
 
 function buildDateRange() {
-  const keys = state.mode === 'monthly' ? sortedMonthKeys() : sortedWeekKeys();
-  const labelFor = key => state.mode === 'monthly'
-    ? key  // "Jan 2026"
-    : (rawData.find(r => r.week_start === key)?.week_label || key);
-
-  const fromSel = document.getElementById('filter-from');
-  const toSel   = document.getElementById('filter-to');
-  const latest   = keys[keys.length - 1];
-  const prevFrom = state.from || latest;
-  const prevTo   = state.to   || latest;
-
-  fromSel.innerHTML = '';
-  toSel.innerHTML   = '';
-  keys.forEach(k => {
-    const o1 = document.createElement('option'); o1.value = k; o1.textContent = labelFor(k); fromSel.appendChild(o1);
-    const o2 = document.createElement('option'); o2.value = k; o2.textContent = labelFor(k); toSel.appendChild(o2);
-  });
-  fromSel.value = keys.includes(prevFrom) ? prevFrom : keys[0];
-  toSel.value   = keys.includes(prevTo)   ? prevTo   : keys[keys.length - 1];
-  state.from = fromSel.value;
-  state.to   = toSel.value;
+  const bounds = dataDateBounds();
+  const def    = defaultDateRange(state.mode);
+  const fromEl = document.getElementById('filter-from');
+  const toEl   = document.getElementById('filter-to');
+  fromEl.min = bounds.min; fromEl.max = bounds.max;
+  toEl.min   = bounds.min; toEl.max   = bounds.max;
+  fromEl.value = state.from || def.from;
+  toEl.value   = state.to   || def.to;
+  state.from = fromEl.value;
+  state.to   = toEl.value;
 }
 
 function setPeriodMode(mode) {
   state.mode = mode; state.from = ''; state.to = '';
-  document.getElementById('toggle-monthly').classList.toggle('active', mode === 'monthly');
-  document.getElementById('toggle-weekly').classList.toggle('active', mode === 'weekly');
-  document.getElementById('trend-badge').textContent = mode === 'monthly' ? 'Monthly' : 'Weekly';
+  ['monthly','weekly','daily'].forEach(m =>
+    document.getElementById('toggle-' + m).classList.toggle('active', m === mode)
+  );
+  document.getElementById('trend-badge').textContent =
+    mode === 'monthly' ? 'Monthly' : mode === 'daily' ? 'Daily' : 'Weekly';
   buildDateRange();
   applyFilters();
 }
 
+// ── Compare helpers ───────────────────────────────────────────────────────────
+function toggleCompare() {
+  state.comparing = !state.comparing;
+  const bar = document.getElementById('compare-bar');
+  const btn = document.getElementById('compare-btn');
+  btn.classList.toggle('active', state.comparing);
+  if (state.comparing) {
+    bar.style.display = 'flex';
+    // Auto-fill prior period (same duration, shifted back)
+    const days = daysBetween(state.from, state.to);
+    state.compareTo   = addDays(state.from, -1);
+    state.compareFrom = addDays(state.compareTo, -days);
+    document.getElementById('compare-from').value = state.compareFrom;
+    document.getElementById('compare-to').value   = state.compareTo;
+  } else {
+    bar.style.display = 'none';
+    compareFiltered = [];
+  }
+  applyFilters();
+}
+
+function clearCompare() {
+  state.comparing = false;
+  compareFiltered = [];
+  document.getElementById('compare-bar').style.display = 'none';
+  document.getElementById('compare-btn').classList.remove('active');
+  applyFilters();
+}
+
 // ── Filtering ─────────────────────────────────────────────────────────────────
+function rowDateKey(r) {
+  if (state.mode === 'monthly') return monthLabelToIso(r.month_label);
+  if (state.mode === 'daily')   return r.date || r.week_start;
+  return r.week_start;
+}
+
+function rowEndKey(r) {
+  if (state.mode === 'monthly') return isoToMonthEnd(monthLabelToIso(r.month_label));
+  if (state.mode === 'daily')   return r.date || r.week_start;
+  return addDays(r.week_start, 6);
+}
+
+function filterRows(data, from, to) {
+  return data.filter(r => {
+    if (state.channel && r.channel !== state.channel) return false;
+    if (state.region  && r.region  !== state.region)  return false;
+    if (state.rep     && r.rep     !== state.rep)      return false;
+    const rStart = rowDateKey(r);
+    const rEnd   = rowEndKey(r);
+    // include row if its period overlaps [from, to]
+    return rStart <= to && rEnd >= from;
+  });
+}
+
 function applyFilters() {
   state.channel = document.getElementById('filter-channel').value;
   state.region  = document.getElementById('filter-region').value;
@@ -330,22 +448,15 @@ function applyFilters() {
   state.from    = document.getElementById('filter-from').value;
   state.to      = document.getElementById('filter-to').value;
 
-  const keys = state.mode === 'monthly' ? sortedMonthKeys() : sortedWeekKeys();
-  const fromIdx = state.from ? keys.indexOf(state.from) : 0;
-  const toIdx   = state.to   ? keys.indexOf(state.to)   : keys.length - 1;
-  const inRange = new Set(keys.slice(
-    Math.min(fromIdx, toIdx),
-    Math.max(fromIdx, toIdx) + 1
-  ));
+  filtered = filterRows(rawData, state.from, state.to);
 
-  filtered = rawData.filter(r => {
-    if (state.channel && r.channel !== state.channel) return false;
-    if (state.region  && r.region  !== state.region)  return false;
-    if (state.rep     && r.rep     !== state.rep)      return false;
-    const key = state.mode === 'monthly' ? r.month_label : r.week_start;
-    if (!inRange.has(key)) return false;
-    return true;
-  });
+  if (state.comparing) {
+    state.compareFrom = document.getElementById('compare-from').value;
+    state.compareTo   = document.getElementById('compare-to').value;
+    compareFiltered   = filterRows(rawData, state.compareFrom, state.compareTo);
+  } else {
+    compareFiltered = [];
+  }
   render();
 }
 
@@ -411,7 +522,6 @@ function render() {
   const nw       = nwCount(filtered);
   const rate     = pct(workable, total);
 
-  // KPIs
   document.getElementById('kpi-total').textContent    = total.toLocaleString();
   document.getElementById('kpi-workable').textContent = workable.toLocaleString();
   document.getElementById('kpi-nw').textContent       = nw.toLocaleString();
@@ -419,6 +529,29 @@ function render() {
   document.getElementById('kpi-workable-sub').textContent = `${pct(workable, total)}% of total`;
   document.getElementById('kpi-nw-sub').textContent       = `${pct(nw, total)}% of total`;
   document.getElementById('kpi-rate-sub').textContent     = `Goal: ≥ 75%`;
+
+  // Comparison KPI deltas
+  if (state.comparing && compareFiltered.length) {
+    const ct  = totalCount(compareFiltered);
+    const cw  = workableCount(compareFiltered);
+    const cn  = nwCount(compareFiltered);
+    const cr  = pct(cw, ct);
+    const kpiDelta = (cur, prev, fmt) => {
+      if (!prev) return '';
+      const diff = cur - prev;
+      const cls  = diff > 0 ? 'up' : diff < 0 ? 'down' : 'flat';
+      const sign = diff > 0 ? '↑' : diff < 0 ? '↓' : '→';
+      return `vs ${fmt(prev)} <span class="kpi-delta ${cls}">${sign}${Math.abs(diff)}${typeof cur === 'number' && cur < 200 ? 'pp' : ''}</span>`;
+    };
+    document.getElementById('kpi-total-cmp').innerHTML    = kpiDelta(total,    ct, v => v.toLocaleString());
+    document.getElementById('kpi-workable-cmp').innerHTML = kpiDelta(workable, cw, v => v.toLocaleString());
+    document.getElementById('kpi-nw-cmp').innerHTML       = kpiDelta(nw,       cn, v => v.toLocaleString());
+    document.getElementById('kpi-rate-cmp').innerHTML     = kpiDelta(rate,     cr, v => v + '%');
+  } else {
+    ['total','workable','nw','rate'].forEach(k =>
+      document.getElementById(`kpi-${k}-cmp`).innerHTML = ''
+    );
+  }
 
   renderTrend();
   renderBreakdown('channel-chart', 'channel');
@@ -428,32 +561,63 @@ function render() {
   renderWorkable();
 }
 
+function trendKeys(data) {
+  // Return sorted unique period keys present in the data
+  const gk = state.mode === 'monthly' ? 'month_label'
+           : state.mode === 'daily'   ? 'date'
+           :                            'week_start';
+  return [...new Set(data.map(r => r[gk]).filter(Boolean))].sort();
+}
+
+function trendLabel(key) {
+  if (state.mode === 'monthly') return key;  // "Jan 2026"
+  if (state.mode === 'daily')   return key.slice(5);  // "04-26"
+  return rawData.find(r => r.week_start === key)?.week_label || key;
+}
+
 function renderTrend() {
   destroyChart('trend-chart');
-  const groupKey = state.mode === 'monthly' ? 'month_label' : 'week_start';
-  const labelKey = state.mode === 'monthly' ? 'month_label' : 'week_label';
+  const gk = state.mode === 'monthly' ? 'month_label'
+           : state.mode === 'daily'   ? 'date'
+           :                            'week_start';
 
-  const allKeys   = state.mode === 'monthly' ? sortedMonthKeys() : sortedWeekKeys();
-  const labelMap  = {};
-  rawData.forEach(r => { labelMap[r[groupKey]] = r[labelKey]; });
-  const labels    = allKeys.map(k => labelMap[k] || k);
+  // Use only keys present in the filtered dataset (no empty bars outside range)
+  const primaryKeys = trendKeys(filtered);
+  const labels      = primaryKeys.map(trendLabel);
 
-  const wArr = allKeys.map(k => workableCount(filtered.filter(r => r[groupKey] === k)));
-  const nArr = allKeys.map(k => nwCount(filtered.filter(r => r[groupKey] === k)));
-  const tArr = allKeys.map((_, i) => (wArr[i] || 0) + (nArr[i] || 0));
+  const wArr = primaryKeys.map(k => workableCount(filtered.filter(r => r[gk] === k)));
+  const nArr = primaryKeys.map(k => nwCount(filtered.filter(r => r[gk] === k)));
+  const tArr = primaryKeys.map((_, i) => (wArr[i] || 0) + (nArr[i] || 0));
   const rArr = tArr.map((t, i) => t === 0 ? null : pct(wArr[i], t));
 
+  const datasets = [
+    { type: 'bar',  label: 'Workable',     data: wArr, backgroundColor: COLORS.workable, borderRadius: 3, stack: 's', yAxisID: 'y' },
+    { type: 'bar',  label: 'Non-Workable', data: nArr, backgroundColor: COLORS.nw,       borderRadius: 3, stack: 's', yAxisID: 'y' },
+    { type: 'line', label: 'Workable %',   data: rArr, borderColor: '#1E293B', backgroundColor: 'transparent',
+      borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#1E293B', yAxisID: 'y2', tension: 0.3, spanGaps: true },
+  ];
+
+  // Comparison overlay (dashed, semi-transparent) — align by position, not by date
+  if (state.comparing && compareFiltered.length) {
+    const cKeys = trendKeys(compareFiltered);
+    const cwArr = cKeys.map(k => workableCount(compareFiltered.filter(r => r[gk] === k)));
+    const cnArr = cKeys.map(k => nwCount(compareFiltered.filter(r => r[gk] === k)));
+    const ctArr = cKeys.map((_, i) => (cwArr[i] || 0) + (cnArr[i] || 0));
+    const crArr = ctArr.map((t, i) => t === 0 ? null : pct(cwArr[i], t));
+    const cLabels = cKeys.map(trendLabel);
+    // Pad/trim compare arrays to primary length for chart alignment
+    const pad = n => Array.from({ length: n }, (_, i) => cwArr[i] ?? null);
+    datasets.push(
+      { type: 'bar',  label: `Workable (cmp)`,     data: cwArr, backgroundColor: COLORS.workable + '55', borderRadius: 3, stack: 'c', yAxisID: 'y',
+        tooltip: { callbacks: { title: ctx => cLabels[ctx[0]?.dataIndex] || '' } } },
+      { type: 'bar',  label: `Non-Workable (cmp)`, data: cnArr, backgroundColor: COLORS.nw + '55',       borderRadius: 3, stack: 'c', yAxisID: 'y' },
+      { type: 'line', label: `Workable % (cmp)`,   data: crArr, borderColor: '#94A3B8', backgroundColor: 'transparent',
+        borderWidth: 2, borderDash: [5, 4], pointRadius: 3, pointBackgroundColor: '#94A3B8', yAxisID: 'y2', tension: 0.3, spanGaps: true },
+    );
+  }
+
   charts['trend-chart'] = new Chart(document.getElementById('trend-chart'), {
-    data: {
-      labels,
-      datasets: [
-        { type: 'bar', label: 'Workable', data: wArr, backgroundColor: COLORS.workable, borderRadius: 3, stack: 's', yAxisID: 'y' },
-        { type: 'bar', label: 'Non-Workable', data: nArr, backgroundColor: COLORS.nw, borderRadius: 3, stack: 's', yAxisID: 'y' },
-        { type: 'line', label: 'Workable %', data: rArr, borderColor: '#1E293B', backgroundColor: 'transparent',
-          borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#1E293B', yAxisID: 'y2', tension: 0.3,
-          spanGaps: true },
-      ],
-    },
+    data: { labels, datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
       plugins: {
@@ -471,12 +635,11 @@ function renderTrend() {
 }
 
 function renderBreakdown(canvasId, dimKey) {
-  const dims    = uniq(filtered.map(r => r[dimKey]));
-  const wArr    = dims.map(d => workableCount(filtered.filter(r => r[dimKey] === d)));
-  const nArr    = dims.map(d => nwCount(filtered.filter(r => r[dimKey] === d)));
-  // Sort by total desc
-  const sorted  = dims.map((d, i) => ({ d, w: wArr[i], n: nArr[i], t: wArr[i] + nArr[i] }))
-                      .sort((a, b) => b.t - a.t);
+  const dims   = uniq(filtered.map(r => r[dimKey]));
+  const sorted = dims.map(d => ({
+    d, w: workableCount(filtered.filter(r => r[dimKey] === d)),
+    n: nwCount(filtered.filter(r => r[dimKey] === d)),
+  })).sort((a, b) => (b.w + b.n) - (a.w + a.n));
   makeHorizBar(canvasId, sorted.map(x => x.d), sorted.map(x => x.w), sorted.map(x => x.n));
 }
 
@@ -485,22 +648,21 @@ function renderNW() {
   const total  = nwCount(filtered);
   document.getElementById('nw-count-badge').textContent = total + ' NW leads';
 
-  // Chart: stacked bar by bucket across time
   destroyChart('nw-chart');
-  const groupKey = state.mode === 'monthly' ? 'month_label' : 'week_start';
-  const labelKey = state.mode === 'monthly' ? 'month_label' : 'week_label';
-  const allKeys  = state.mode === 'monthly' ? sortedMonthKeys() : sortedWeekKeys();
+  const gk      = state.mode === 'monthly' ? 'month_label' : state.mode === 'daily' ? 'date' : 'week_start';
+  const lk      = state.mode === 'monthly' ? 'month_label' : state.mode === 'daily' ? 'date' : 'week_label';
+  const allKeys = trendKeys(filtered);
   const labelMap = {};
-  rawData.forEach(r => { labelMap[r[groupKey]] = r[labelKey]; });
+  rawData.forEach(r => { labelMap[r[gk]] = r[lk]; });
   const buckets  = ['Member', 'Not ICP', 'Data Quality', 'Other'];
 
   charts['nw-chart'] = new Chart(document.getElementById('nw-chart'), {
     type: 'bar',
     data: {
-      labels: allKeys.map(k => labelMap[k] || k),
+      labels: allKeys.map(k => trendLabel(k)),
       datasets: buckets.map(bucket => ({
         label: bucket,
-        data: allKeys.map(k => nwData.filter(r => r[groupKey] === k && r.nw_reason_bucket === bucket)
+        data: allKeys.map(k => nwData.filter(r => r[gk] === k && r.nw_reason_bucket === bucket)
                                      .reduce((s, r) => s + r._count, 0)),
         backgroundColor: NW_BUCKET_COLORS[bucket] || COLORS.other,
         borderRadius: 3,
