@@ -33,9 +33,17 @@
   .toggle-btn { padding: 5px 14px; background: #fff; color: #475569; font-size: 13px; font-weight: 500; cursor: pointer; border: none; transition: all .15s; }
   .toggle-btn:hover { background: #F8FAFC; }
   .toggle-btn.active { background: #1E293B; color: #fff; font-weight: 600; }
-  .period-btn { padding: 5px 12px; border: 1.5px solid #CBD5E1; border-radius: 6px; background: #fff; color: #475569; font-size: 13px; cursor: pointer; transition: all .15s; white-space: nowrap; }
-  .period-btn:hover { border-color: #3B82F6; color: #3B82F6; }
-  .period-btn.active { background: #3B82F6; border-color: #3B82F6; color: #fff; font-weight: 600; }
+  .date-range { display: flex; align-items: center; gap: 6px; }
+  .date-range-arrow { color: #94A3B8; font-size: 13px; }
+
+  /* ── Rep progress bar ── */
+  .rep-bar-wrap { display: flex; align-items: center; gap: 10px; }
+  .rep-bar-track { flex: 1; min-width: 80px; height: 7px; background: #F1F5F9; border-radius: 4px; position: relative; }
+  .rep-bar-fill { height: 100%; border-radius: 4px; }
+  .rep-bar-target { position: absolute; top: -3px; width: 2px; height: 13px; background: #1E293B; border-radius: 1px; left: 75%; }
+  .rep-rate-label { font-size: 13px; font-weight: 700; min-width: 36px; text-align: right; }
+  .rep-name { font-weight: 600; font-size: 13px; }
+  .rep-volume { font-size: 11px; color: #94A3B8; margin-top: 1px; }
   .filter-label { font-size: 12px; color: #94A3B8; font-weight: 500; white-space: nowrap; }
   .filter-select { padding: 5px 28px 5px 10px; border: 1.5px solid #CBD5E1; border-radius: 6px; background: #fff; color: #475569; font-size: 13px; cursor: pointer; outline: none; appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394A3B8' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 8px center; }
   .filter-select:focus { border-color: #3B82F6; }
@@ -116,8 +124,10 @@
       <button class="toggle-btn" id="toggle-weekly" onclick="setPeriodMode('weekly')">Weekly</button>
     </div>
     <div class="filter-divider"></div>
-    <span class="filter-label">Period</span>
-    <div id="period-btns" style="display:flex;gap:6px;flex-wrap:wrap;"></div>
+    <span class="filter-label">From</span>
+    <select class="filter-select" id="filter-from" onchange="applyFilters()"></select>
+    <span class="date-range-arrow">→</span>
+    <select class="filter-select" id="filter-to" onchange="applyFilters()"></select>
     <div class="filter-divider"></div>
     <span class="filter-label">Channel</span>
     <select class="filter-select" id="filter-channel" onchange="applyFilters()">
@@ -192,7 +202,8 @@ let filtered = [];
 let charts   = {};
 let state    = {
   mode:    'monthly',   // 'monthly' | 'weekly'
-  periods: [],          // [] = all; ['Jan 2026', ...] for monthly, ['Apr 27', ...] for weekly
+  from:    '',          // period key for range start ('' = earliest)
+  to:      '',          // period key for range end ('' = latest)
   channel: '',
   region:  '',
   rep:     '',
@@ -266,59 +277,38 @@ function buildFilterOptions() {
   fill('filter-channel', uniq(rawData.map(r => r.channel)));
   fill('filter-region',  uniq(rawData.map(r => r.region)));
   fill('filter-rep',     uniq(rawData.map(r => r.rep)));
-  buildPeriodButtons();
+  buildDateRange();
 }
 
-function buildPeriodButtons() {
-  const container = document.getElementById('period-btns');
-  container.innerHTML = '';
-  const all = document.createElement('button');
-  all.className = 'period-btn' + (state.periods.length === 0 ? ' active' : '');
-  all.textContent = 'YTD'; all.onclick = () => setPeriods([]);
-  container.appendChild(all);
+function buildDateRange() {
+  const keys = state.mode === 'monthly' ? sortedMonthKeys() : sortedWeekKeys();
+  const labelFor = key => state.mode === 'monthly'
+    ? key  // "Jan 2026"
+    : (rawData.find(r => r.week_start === key)?.week_label || key);
 
-  if (state.mode === 'monthly') {
-    const labels = sortedMonthKeys();
-    labels.forEach(lbl => {
-      const btn = document.createElement('button');
-      btn.className = 'period-btn' + (state.periods.includes(lbl) ? ' active' : '');
-      btn.textContent = lbl.split(' ')[0]; // "Jan", "Feb", etc.
-      btn.onclick = () => togglePeriod(lbl);
-      container.appendChild(btn);
-    });
-  } else {
-    // Weekly: show last 12 weeks
-    const weeks = uniq(rawData.map(r => r.week_start)).slice(-12);
-    weeks.forEach(ws => {
-      const lbl = rawData.find(r => r.week_start === ws)?.week_label || ws;
-      const btn = document.createElement('button');
-      btn.className = 'period-btn' + (state.periods.includes(ws) ? ' active' : '');
-      btn.textContent = lbl;
-      btn.onclick = () => togglePeriod(ws);
-      container.appendChild(btn);
-    });
-  }
+  const fromSel = document.getElementById('filter-from');
+  const toSel   = document.getElementById('filter-to');
+  const prevFrom = state.from || keys[0];
+  const prevTo   = state.to   || keys[keys.length - 1];
+
+  fromSel.innerHTML = '';
+  toSel.innerHTML   = '';
+  keys.forEach(k => {
+    const o1 = document.createElement('option'); o1.value = k; o1.textContent = labelFor(k); fromSel.appendChild(o1);
+    const o2 = document.createElement('option'); o2.value = k; o2.textContent = labelFor(k); toSel.appendChild(o2);
+  });
+  fromSel.value = keys.includes(prevFrom) ? prevFrom : keys[0];
+  toSel.value   = keys.includes(prevTo)   ? prevTo   : keys[keys.length - 1];
+  state.from = fromSel.value;
+  state.to   = toSel.value;
 }
 
 function setPeriodMode(mode) {
-  state.mode = mode; state.periods = [];
+  state.mode = mode; state.from = ''; state.to = '';
   document.getElementById('toggle-monthly').classList.toggle('active', mode === 'monthly');
   document.getElementById('toggle-weekly').classList.toggle('active', mode === 'weekly');
   document.getElementById('trend-badge').textContent = mode === 'monthly' ? 'Monthly' : 'Weekly';
-  buildPeriodButtons();
-  applyFilters();
-}
-
-function setPeriods(periods) {
-  state.periods = periods;
-  buildPeriodButtons();
-  applyFilters();
-}
-
-function togglePeriod(p) {
-  if (state.periods.includes(p)) state.periods = state.periods.filter(x => x !== p);
-  else state.periods = [...state.periods, p];
-  buildPeriodButtons();
+  buildDateRange();
   applyFilters();
 }
 
@@ -327,15 +317,23 @@ function applyFilters() {
   state.channel = document.getElementById('filter-channel').value;
   state.region  = document.getElementById('filter-region').value;
   state.rep     = document.getElementById('filter-rep').value;
+  state.from    = document.getElementById('filter-from').value;
+  state.to      = document.getElementById('filter-to').value;
+
+  const keys = state.mode === 'monthly' ? sortedMonthKeys() : sortedWeekKeys();
+  const fromIdx = state.from ? keys.indexOf(state.from) : 0;
+  const toIdx   = state.to   ? keys.indexOf(state.to)   : keys.length - 1;
+  const inRange = new Set(keys.slice(
+    Math.min(fromIdx, toIdx),
+    Math.max(fromIdx, toIdx) + 1
+  ));
 
   filtered = rawData.filter(r => {
     if (state.channel && r.channel !== state.channel) return false;
     if (state.region  && r.region  !== state.region)  return false;
     if (state.rep     && r.rep     !== state.rep)      return false;
-    if (state.periods.length > 0) {
-      const key = state.mode === 'monthly' ? r.month_label : r.week_start;
-      if (!state.periods.includes(key)) return false;
-    }
+    const key = state.mode === 'monthly' ? r.month_label : r.week_start;
+    if (!inRange.has(key)) return false;
     return true;
   });
   render();
@@ -535,33 +533,44 @@ function renderNW() {
 function renderReps() {
   const reps = uniq(filtered.map(r => r.rep)).filter(r => r && r !== 'nan');
   const rows = reps.map(rep => {
-    const repData  = filtered.filter(r => r.rep === rep);
-    const t        = totalCount(repData);
-    const w        = workableCount(repData);
-    const n        = nwCount(repData);
-    const region   = repData[0]?.region || '—';
-    const topNW    = sumBy(repData.filter(r => r.workability === 'Non-Workable'), ['nw_reason_bucket'])
-                       .sort((a, b) => b.total - a.total)[0]?.nw_reason_bucket || '—';
-    return { rep, region, t, w, n, rate: pct(w, t), topNW };
-  }).sort((a, b) => b.t - a.t);
+    const repData = filtered.filter(r => r.rep === rep);
+    const t       = totalCount(repData);
+    const w       = workableCount(repData);
+    const region  = repData[0]?.region || '—';
+    const topNW   = sumBy(repData.filter(r => r.workability === 'Non-Workable'), ['nw_reason_bucket'])
+                      .sort((a, b) => b.total - a.total)[0]?.nw_reason_bucket || '—';
+    return { rep, region, t, w, rate: pct(w, t), topNW };
+  }).sort((a, b) => b.t - a.t).slice(0, 15);
+
+  const regionColor = { NAM: '#3B82F6', EMEA: '#8B5CF6', APAC: '#F59E0B', 'AI SDR': '#06B6D4', Other: '#94A3B8' };
 
   document.getElementById('rep-table').innerHTML = `
     <thead><tr>
-      <th>Rep</th><th>Region</th>
-      <th class="td-right">Total MQLs</th><th class="td-right">Workable</th>
-      <th class="td-right">Non-Workable</th><th class="td-right">W. Rate</th>
+      <th>Rep</th>
+      <th>Region</th>
+      <th>Workable Rate <span style="font-weight:400;color:#94A3B8;font-size:11px;">— 75% target</span></th>
       <th>Top NW Reason</th>
     </tr></thead>
     <tbody>${rows.map(r => {
-      const rateClass = r.rate >= 75 ? 'pill-green' : r.rate >= 60 ? 'pill-orange' : 'pill-red';
+      const fillColor = r.rate >= 75 ? '#22C55E' : r.rate >= 60 ? '#F59E0B' : '#EF4444';
+      const barPct    = Math.min(r.rate, 100);
+      const rc        = regionColor[r.region] || '#94A3B8';
       return `<tr>
-        <td><strong>${r.rep}</strong></td>
-        <td><span class="pill pill-gray">${r.region}</span></td>
-        <td class="td-right">${r.t.toLocaleString()}</td>
-        <td class="td-right">${r.w.toLocaleString()}</td>
-        <td class="td-right">${r.n.toLocaleString()}</td>
-        <td class="td-right"><span class="pill ${rateClass}">${r.rate}%</span></td>
-        <td>${r.topNW}</td>
+        <td>
+          <div class="rep-name">${r.rep}</div>
+          <div class="rep-volume">${r.t.toLocaleString()} MQLs &nbsp;·&nbsp; ${r.w.toLocaleString()} workable</div>
+        </td>
+        <td><span class="pill" style="background:${rc}18;color:${rc};border:1px solid ${rc}40;">${r.region}</span></td>
+        <td>
+          <div class="rep-bar-wrap">
+            <div class="rep-bar-track">
+              <div class="rep-bar-fill" style="width:${barPct}%;background:${fillColor};"></div>
+              <div class="rep-bar-target"></div>
+            </div>
+            <span class="rep-rate-label" style="color:${fillColor};">${r.rate}%</span>
+          </div>
+        </td>
+        <td style="font-size:12px;color:#64748B;">${r.topNW}</td>
       </tr>`;
     }).join('')}</tbody>`;
 }
