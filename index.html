@@ -635,7 +635,7 @@ function renderWorkable() {
       <th class="td-right">% of Workable</th>
     </tr></thead>
     <tbody>${statuses.map(r => {
-      const label    = r.lead_status || 'Unknown';
+      const label    = r.lead_status || '—';
       const barWidth = pct(r.total, wTotal);
       const isOpen   = UNACTIONED.has(r.lead_status);
       const rowStyle = isOpen ? 'background:#FEF2F2;' : '';
