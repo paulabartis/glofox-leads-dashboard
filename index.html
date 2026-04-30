@@ -808,14 +808,26 @@ function renderWorkable() {
     },
   });
 
-  // ── Donut legend ──────────────────────────────────────────────────────────
+  // ── Donut legend (with Lead / Contact split) ─────────────────────────────
+  const hasRecordType = wData.some(r => r.record_type);
   document.getElementById('workable-donut-legend').innerHTML = statuses.map(r => {
-    const label    = r.lead_status || '—';
-    const color    = STATUS_COLORS[r.lead_status] || '#CBD5E1';
-    const isOpen   = UNACTIONED.has(r.lead_status);
-    const tag      = isOpen ? `<span style="font-size:10px;background:#FEE2E2;color:#EF4444;padding:1px 5px;border-radius:3px;font-weight:600;margin-left:4px;">unactioned</span>` : '';
-    const barW     = pct(r.total, wTotal);
-    return `<div style="margin-bottom:8px;">
+    const label  = r.lead_status || '—';
+    const color  = STATUS_COLORS[r.lead_status] || '#CBD5E1';
+    const isOpen = UNACTIONED.has(r.lead_status);
+    const tag    = isOpen ? `<span style="font-size:10px;background:#FEE2E2;color:#EF4444;padding:1px 5px;border-radius:3px;font-weight:600;margin-left:4px;">unactioned</span>` : '';
+    const barW   = pct(r.total, wTotal);
+
+    let splitHtml = '';
+    if (hasRecordType) {
+      const leadN    = wData.filter(d => d.lead_status === r.lead_status && d.record_type === 'Lead').reduce((s, d) => s + d._count, 0);
+      const contactN = wData.filter(d => d.lead_status === r.lead_status && d.record_type === 'Contact').reduce((s, d) => s + d._count, 0);
+      splitHtml = `<div style="display:flex;gap:10px;margin-top:3px;margin-left:16px;">
+        <span style="font-size:11px;color:#64748B;">Lead <strong style="color:#1E293B;">${leadN.toLocaleString()}</strong></span>
+        <span style="font-size:11px;color:#64748B;">Contact <strong style="color:#1E293B;">${contactN.toLocaleString()}</strong></span>
+      </div>`;
+    }
+
+    return `<div style="margin-bottom:10px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
         <div style="display:flex;align-items:center;gap:6px;">
           <div style="width:10px;height:10px;border-radius:2px;background:${color};flex-shrink:0;"></div>
@@ -823,6 +835,7 @@ function renderWorkable() {
         </div>
         <span style="font-size:12px;font-weight:700;color:${color};margin-left:8px;">${r.total.toLocaleString()} <span style="font-weight:400;color:#94A3B8;">(${barW}%)</span></span>
       </div>
+      ${splitHtml}
       <div class="bar-track" style="height:5px;">
         <div class="bar-fill" style="width:${barW}%;background:${color};opacity:.7;"></div>
       </div>
